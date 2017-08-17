@@ -13,6 +13,17 @@ Release Asset: true
 Network: True
 */
 
+set_include_path(get_include_path() . ':/usr/local/lib/');
+
+require_once '/usr/local/lib/caliper-php/autoload.php';
+
+use IMSGlobal\Caliper\actions\Action;
+use IMSGlobal\Caliper\Client;
+use IMSGlobal\Caliper\events\SessionEvent;
+use IMSGlobal\Caliper\Options;
+use IMSGlobal\Caliper\Sensor;
+
+
 if ( ! defined( 'ABSPATH' ) ) {
 	return;
 }
@@ -27,6 +38,39 @@ function _pb_session_start() { // @codingStandardsIgnoreLine
 			ini_set( 'session.use_only_cookies', true );
 			apply_filters( 'pressbooks_session_configuration', false );
 			session_start();
+
+			$sessionId = session_id();
+
+			# send Caliper event
+
+			$sensor = new Sensor('pressbooks_caliper');
+
+			$options = (new Options())
+				->setApiKey('org.imsglobal.caliper.php.apikey')
+				->setDebug(true)
+				->setHost('https://requestb.in/1l4xu8f1');
+
+			$sensor->registerClient('http', new Client('pressbooks_caliper_http_client', $options));
+
+			$pressbooksEntity = (new \IMSGlobal\Caliper\entities\agent\SoftwareApplication('pressbooks'))
+				->setName('Pressbooks');
+			$actor = new \IMSGlobal\Caliper\entities\agent\Person('moby_fubar');
+
+			$event = (new SessionEvent())
+				->setAction(new Action(Action::LOGGED_IN))
+				->setActor($actor)
+				->setEdApp($pressbooksEntity)
+				->setObject($pressbooksEntity)
+				->setSession((new \IMSGlobal\Caliper\entities\session\Session($sessionId))
+					->setUser($actor)
+				);
+
+			try {
+				$sensor->send($sensor, $event);
+			} catch (\RuntimeException $sendException) {
+				echo 'Error sending event: ' . $sendException->getMessage() . PHP_EOL;
+			}
+
 		} else {
 			error_log( 'There was a problem with _pb_session_start(), headers already sent!' );
 		}
