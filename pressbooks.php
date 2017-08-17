@@ -19,6 +19,7 @@ require_once '/usr/local/lib/caliper-php/autoload.php';
 
 use IMSGlobal\Caliper\actions\Action;
 use IMSGlobal\Caliper\Client;
+use IMSGlobal\Caliper\entities\session\Session;
 use IMSGlobal\Caliper\events\SessionEvent;
 use IMSGlobal\Caliper\Options;
 use IMSGlobal\Caliper\Sensor;
@@ -48,7 +49,7 @@ function _pb_session_start() { // @codingStandardsIgnoreLine
 			$options = (new Options())
 				->setApiKey('org.imsglobal.caliper.php.apikey')
 				->setDebug(true)
-				->setHost('https://requestb.in/1l4xu8f1');
+				->setHost('http://lti.tools/caliper/event?key=pressbooks-caliper');
 
 			$sensor->registerClient('http', new Client('pressbooks_caliper_http_client', $options));
 
@@ -56,14 +57,19 @@ function _pb_session_start() { // @codingStandardsIgnoreLine
 				->setName('Pressbooks');
 			$actor = new \IMSGlobal\Caliper\entities\agent\Person('moby_fubar');
 
+			$sessionEntity = (new Session($sessionId))
+				->setUser($actor)
+				->setDateCreated(
+					new \DateTime('2016-11-15T10:00:00.000Z'))
+				->setStartedAtTime(
+					new \DateTime('2016-11-15T10:00:00.000Z'));
+
 			$event = (new SessionEvent())
 				->setAction(new Action(Action::LOGGED_IN))
 				->setActor($actor)
 				->setEdApp($pressbooksEntity)
 				->setObject($pressbooksEntity)
-				->setSession((new \IMSGlobal\Caliper\entities\session\Session($sessionId))
-					->setUser($actor)
-				);
+				->setSession($sessionEntity);
 
 			try {
 				$sensor->send($sensor, $event);
