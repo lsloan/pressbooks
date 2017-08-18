@@ -24,9 +24,8 @@ use IMSGlobal\Caliper\events\SessionEvent;
 use IMSGlobal\Caliper\Options;
 use IMSGlobal\Caliper\Sensor;
 
-
 if ( ! defined( 'ABSPATH' ) ) {
-	return;
+        return;
 }
 
 // -------------------------------------------------------------------------------------------------------------------
@@ -34,58 +33,60 @@ if ( ! defined( 'ABSPATH' ) ) {
 // -------------------------------------------------------------------------------------------------------------------
 
 function _pb_session_start() { // @codingStandardsIgnoreLine
-	if ( ! session_id() ) {
-		if ( ! headers_sent() ) {
-			ini_set( 'session.use_only_cookies', true );
-			apply_filters( 'pressbooks_session_configuration', false );
-			session_start();
+        if ( ! session_id() ) {
+                if ( ! headers_sent() ) {
+                        ini_set( 'session.use_only_cookies', true );
+                        apply_filters( 'pressbooks_session_configuration', false );
+                        session_start();
 
-			$sessionId = session_id();
+                        $sessionId = session_id();
 
-			# send Caliper event
+                        # send Caliper event
 
-			$sensor = new Sensor('pressbooks_caliper');
+                        $sensor = new Sensor('pressbooks_caliper');
 
-			$options = (new Options())
-				->setApiKey('org.imsglobal.caliper.php.apikey')
-				->setDebug(true)
-				->setHost('http://lti.tools/caliper/event?key=pressbooks-caliper');
+                        $options = (new Options())
+                                ->setApiKey('d2c2841c-274f-4a0c-b31c-ff3d9b8a3b8c')
+                                ->setDebug(true)
+                                ->setHost('http://lti.tools/caliper/event?key=pressbooks-caliper');
 
-			$sensor->registerClient('http', new Client('pressbooks_caliper_http_client', $options));
+                        $sensor->registerClient('http', new Client('pressbooks_caliper_http_client', $options));
 
-			$pressbooksEntity = (new \IMSGlobal\Caliper\entities\agent\SoftwareApplication('pressbooks'))
-				->setName('Pressbooks');
-			$actor = new \IMSGlobal\Caliper\entities\agent\Person('moby_fubar');
+                        $pressbooksEntity = (new \IMSGlobal\Caliper\entities\agent\SoftwareApplication('pressbooks'))
+                                ->setName('Pressbooks');
+                        $wp_user = wp_get_current_user();
+                        if ($wp_user->ID !=0){
+                        $actor = new \IMSGlobal\Caliper\entities\agent\Person($wp_user->user_login);
 
-			$sessionEntity = (new Session($sessionId))
-				->setUser($actor)
-				->setDateCreated(
-					new \DateTime('2016-11-15T10:00:00.000Z'))
-				->setStartedAtTime(
-					new \DateTime('2016-11-15T10:00:00.000Z'));
+                        $sessionEntity = (new Session($sessionId))
+                                ->setUser($actor)
+                                ->setDateCreated(
+                                        new \DateTime())
+                                ->setStartedAtTime(
+                                        new \DateTime());
 
-			$event = (new SessionEvent())
-				->setAction(new Action(Action::LOGGED_IN))
-				->setActor($actor)
-				->setEdApp($pressbooksEntity)
-				->setObject($pressbooksEntity)
-				->setSession($sessionEntity);
+                        $event = (new SessionEvent())
+                                ->setAction(new Action(Action::LOGGED_IN))
+                                ->setActor($actor)
+                                ->setEdApp($pressbooksEntity)
+                                ->setObject($pressbooksEntity)
+                                ->setSession($sessionEntity);
 
-			try {
-				$sensor->send($sensor, $event);
-			} catch (\RuntimeException $sendException) {
-				echo 'Error sending event: ' . $sendException->getMessage() . PHP_EOL;
-			}
-
-		} else {
-			error_log( 'There was a problem with _pb_session_start(), headers already sent!' );
-		}
-	}
+                        try {
+                                $sensor->send($sensor, $event);
+                        } catch (\RuntimeException $sendException) {
+                                echo 'Error sending event: ' . $sendException->getMessage() . PHP_EOL;
+                                      }
+                }
+                } else {
+                        error_log( 'There was a problem with _pb_session_start(), headers already sent!' );
+                }
+        }
 }
 
 function _pb_session_kill() { // @codingStandardsIgnoreLine
-	$_SESSION = [];
-	session_destroy();
+        $_SESSION = [];
+        session_destroy();
 }
 
 add_action( 'init', '_pb_session_start', 1 );
