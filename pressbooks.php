@@ -13,19 +13,24 @@ Release Asset: true
 Network: True
 */
 
+/*
+ * TODO: Add Caliper 1.1 dependency to composer.json; simplify this "require".
+ * For now, use a local installation of it until its public release.
+ */
 set_include_path(get_include_path() . ':/usr/local/lib/');
-
 require_once '/usr/local/lib/caliper-php/autoload.php';
 
 use IMSGlobal\Caliper\actions\Action;
 use IMSGlobal\Caliper\Client;
+use IMSGlobal\Caliper\entities\agent\Person;
+use IMSGlobal\Caliper\entities\agent\SoftwareApplication;
 use IMSGlobal\Caliper\entities\session\Session;
 use IMSGlobal\Caliper\events\SessionEvent;
 use IMSGlobal\Caliper\Options;
 use IMSGlobal\Caliper\Sensor;
 
 if ( ! defined( 'ABSPATH' ) ) {
-        return;
+	return;
 }
 
 // -------------------------------------------------------------------------------------------------------------------
@@ -33,60 +38,64 @@ if ( ! defined( 'ABSPATH' ) ) {
 // -------------------------------------------------------------------------------------------------------------------
 
 function _pb_session_start() { // @codingStandardsIgnoreLine
-        if ( ! session_id() ) {
-                if ( ! headers_sent() ) {
-                        ini_set( 'session.use_only_cookies', true );
-                        apply_filters( 'pressbooks_session_configuration', false );
-                        session_start();
+	if ( ! session_id() ) {
+		if ( ! headers_sent() ) {
+			ini_set( 'session.use_only_cookies', true );
+			apply_filters( 'pressbooks_session_configuration', false );
+			session_start();
+			$sessionId = session_id();
 
-                        $sessionId = session_id();
+			// send Caliper event if user is authenticated
+			$wp_user = wp_get_current_user();
+			if ($wp_user->ID != 0) {
+				/*
+				 * TODO: Check session for "caliper_session" key.  Only send SessionEvent/LOGGED_IN
+				 * event if key nonexistent or its value doesn't equal the current session ID.
+				 */
 
-                        # send Caliper event
+				$sensor = new Sensor('pressbooks_caliper_service');
 
-                        $sensor = new Sensor('pressbooks_caliper');
+				$options = (new Options())
+					->setHost('http://lti.tools/caliper/event?key=your_favorite_app_key_here')
+					->setApiKey('endpoint_authz_here')
+					->setDebug(true);
 
-                        $options = (new Options())
-                                ->setApiKey('d2c2841c-274f-4a0c-b31c-ff3d9b8a3b8c')
-                                ->setDebug(true)
-                                ->setHost('http://lti.tools/caliper/event?key=pressbooks-caliper');
+				$sensor->registerClient('http',
+					new Client('pressbooks_caliper_http_client', $options));
 
-                        $sensor->registerClient('http', new Client('pressbooks_caliper_http_client', $options));
+				$pressbooksEntity = (new SoftwareApplication('pressbooks'))
+					->setName('Pressbooks');
 
-                        $pressbooksEntity = (new \IMSGlobal\Caliper\entities\agent\SoftwareApplication('pressbooks'))
-                                ->setName('Pressbooks');
-                        $wp_user = wp_get_current_user();
-                        if ($wp_user->ID !=0){
-                        $actor = new \IMSGlobal\Caliper\entities\agent\Person($wp_user->user_login);
+				$actor = new Person($wp_user->user_login);
 
-                        $sessionEntity = (new Session($sessionId))
-                                ->setUser($actor)
-                                ->setDateCreated(
-                                        new \DateTime())
-                                ->setStartedAtTime(
-                                        new \DateTime());
+				$sessionEntity = (new Session($sessionId))
+					->setUser($actor)
+					->setDateCreated(new \DateTime())
+					->setStartedAtTime(new \DateTime());
 
-                        $event = (new SessionEvent())
-                                ->setAction(new Action(Action::LOGGED_IN))
-                                ->setActor($actor)
-                                ->setEdApp($pressbooksEntity)
-                                ->setObject($pressbooksEntity)
-                                ->setSession($sessionEntity);
+				$event = (new SessionEvent())
+					->setAction(new Action(Action::LOGGED_IN))
+					->setActor($actor)
+					->setObject($pressbooksEntity)
+					->setSession($sessionEntity)
+					->setEventTime(new \DateTime())
+					->setEdApp($pressbooksEntity);
 
-                        try {
-                                $sensor->send($sensor, $event);
-                        } catch (\RuntimeException $sendException) {
-                                echo 'Error sending event: ' . $sendException->getMessage() . PHP_EOL;
-                                      }
-                }
-                } else {
-                        error_log( 'There was a problem with _pb_session_start(), headers already sent!' );
-                }
-        }
+				try {
+					$sensor->send($sensor, $event);
+				} catch (\RuntimeException $sendException) {
+					echo 'Error sending event: ' . $sendException->getMessage() . PHP_EOL;
+				}
+			}
+		} else {
+			error_log( 'There was a problem with _pb_session_start(), headers already sent!' );
+		}
+	}
 }
 
 function _pb_session_kill() { // @codingStandardsIgnoreLine
-        $_SESSION = [];
-        session_destroy();
+	$_SESSION = [];
+	session_destroy();
 }
 
 add_action( 'init', '_pb_session_start', 1 );
